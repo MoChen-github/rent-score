@@ -1,0 +1,59 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Sync Capacitor
+        run: node node_modules/@capacitor/cli/bin/capacitor sync ios
+
+      - name: Install CocoaPods
+        run: |
+          cd ios/App
+          pod install
+
+      - name: Build iOS App
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Export IPA
+        run: |
+          mkdir -p build/ipa
+          cp -r ios/App/build/App.xcarchive/Products/Applications/*.app build/ipa/
+          cd build/ipa
+          mkdir Payload
+          mv *.app Payload/
+          zip -r ../RentScore.ipa Payload
+          cd ../..
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: RentScore-iOS
+          path: build/RentScore.ipa
