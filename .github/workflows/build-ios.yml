@@ -71,28 +71,50 @@ jobs:
             exit 1
           fi
           echo "Found: $APP_PATH"
-          echo "=== Contents ==="
-          ls -la "$APP_PATH"
+
+          # Check executable exists
+          echo "=== Checking executable ==="
+          ls -la "$APP_PATH/App" 2>/dev/null || echo "WARNING: No executable named 'App' found"
+          ls -la "$APP_PATH/" | head -20
+
+          # Check Info.plist
+          echo "=== Checking Info.plist ==="
+          plutil -lint "$APP_PATH/Info.plist" 2>&1 || echo "WARNING: Info.plist invalid"
 
           # Ad-hoc codesign all frameworks and the app
           echo "=== Ad-hoc signing ==="
-          find "$APP_PATH/Frameworks" -name "*.framework" -type d 2>/dev/null | while read fw; do
-            echo "Signing $fw"
-            codesign --force --sign - "$fw" 2>/dev/null || true
-          done
+          # Sign frameworks first (innermost first)
           find "$APP_PATH/Frameworks" -name "*.dylib" -type f 2>/dev/null | while read dy; do
             echo "Signing $dy"
-            codesign --force --sign - "$dy" 2>/dev/null || true
+            codesign --force --sign - "$dy" 2>&1
           done
-          codesign --force --sign - "$APP_PATH" 2>/dev/null || true
-          echo "=== Signed ==="
+          find "$APP_PATH/Frameworks" -name "*.framework" -type d 2>/dev/null | while read fw; do
+            echo "Signing $fw"
+            codesign --force --sign - "$fw" 2>&1
+          done
+          # Sign the app itself
+          echo "Signing app bundle"
+          codesign --force --sign - --deep "$APP_PATH" 2>&1
+          echo "=== Verify signing ==="
+          codesign -v "$APP_PATH" 2>&1 || echo "WARNING: Code signature verification failed"
 
-          # Package IPA
+          # Package IPA (must use -x to exclude .DS_Store, and cd into Payload parent)
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
-          zip -r RentScore.ipa Payload
+          echo "=== Payload structure ==="
+          ls -la Payload/
+          ls -la Payload/App.app/ | head -10
+
+          # Create IPA with correct structure
+          zip --symlinks -r RentScore.ipa Payload/
           echo "=== IPA size ==="
           ls -lh RentScore.ipa
+
+          # Verify IPA structure
+          echo "=== IPA verification ==="
+          unzip -l RentScore.ipa | head -20
+          echo "=== Checking Payload/App.app/App exists in IPA ==="
+          unzip -l RentScore.ipa | grep "Payload/App.app/App$" || echo "WARNING: Executable not found in IPA"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
