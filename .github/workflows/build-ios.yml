@@ -39,16 +39,15 @@ jobs:
           cd ios/App
           pod install
 
-      - name: Build iOS App (unsigned)
+      - name: Build iOS App
         run: |
+          set -o pipefail
           cd ios/App
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            -archivePath build/App.xcarchive \
-            archive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -56,36 +55,44 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             ENABLE_BITCODE=NO \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            ONLY_ACTIVE_ARCH=NO \
             2>&1 | tee xcodebuild.log
-          echo "=== Archive step exit code: $? ==="
 
-      - name: Debug - find archive
-        if: always()
+      - name: Find and package IPA
         run: |
-          echo "=== Looking for .xcarchive ==="
-          find . -name "*.xcarchive" -type d 2>/dev/null || echo "No .xcarchive found"
-          echo "=== Looking for .app ==="
-          find . -name "*.app" -type d 2>/dev/null || echo "No .app found"
-          echo "=== ios/App/build contents ==="
-          ls -la ios/App/build/ 2>/dev/null || echo "ios/App/build/ does not exist"
-          echo "=== ios/App/build recursive ==="
-          find ios/App/build -maxdepth 5 -type d 2>/dev/null || echo "Nothing in ios/App/build"
-
-      - name: Export IPA
-        run: |
-          APP_PATH=$(find . -name "*.app" -path "*/xcarchive/*" -type d | head -1)
+          echo "=== Searching for .app ==="
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "App.app" -path "*/Release-iphoneos/*" -type d | head -1)
           if [ -z "$APP_PATH" ]; then
-            # Try build output directly
-            APP_PATH=$(find . -name "*.app" -not -path "*/xcarchive/*" -type d | head -1)
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "App.app" -type d | head -1)
           fi
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: Could not find .app anywhere"
+            echo "ERROR: Could not find App.app"
+            find ~/Library/Developer/Xcode/DerivedData -maxdepth 6 -type d 2>/dev/null
             exit 1
           fi
-          echo "Found app at: $APP_PATH"
+          echo "Found: $APP_PATH"
+          echo "=== Contents ==="
+          ls -la "$APP_PATH"
+
+          # Ad-hoc codesign all frameworks and the app
+          echo "=== Ad-hoc signing ==="
+          find "$APP_PATH/Frameworks" -name "*.framework" -type d 2>/dev/null | while read fw; do
+            echo "Signing $fw"
+            codesign --force --sign - "$fw" 2>/dev/null || true
+          done
+          find "$APP_PATH/Frameworks" -name "*.dylib" -type f 2>/dev/null | while read dy; do
+            echo "Signing $dy"
+            codesign --force --sign - "$dy" 2>/dev/null || true
+          done
+          codesign --force --sign - "$APP_PATH" 2>/dev/null || true
+          echo "=== Signed ==="
+
+          # Package IPA
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
           zip -r RentScore.ipa Payload
+          echo "=== IPA size ==="
+          ls -lh RentScore.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
