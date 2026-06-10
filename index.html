@@ -650,6 +650,7 @@
 <body>
 
 <div class="save-indicator" id="saveIndicator">已保存</div>
+<div style="position:fixed;bottom:4px;right:8px;font-size:10px;color:rgba(138,141,151,0.3);z-index:9999;pointer-events:none;">v20260610.2</div>
 
 <div class="container">
   <header class="header">
@@ -1714,7 +1715,10 @@ render();
 
 // 注册 Service Worker
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js?v=20260610.2').then(reg => {
+    // 强制检查更新
+    reg.update();
+  }).catch(() => {});
 }
 </script>
 </body>
