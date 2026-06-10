@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="租房评分">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.svg">
+<meta name="theme-color" content="#e8a838">
+<title>租房综合评分工具</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg-card: #181b24;
+    --bg-card-hover: #1e2230;
+    --fg: #e8e6e1;
+    --fg-muted: #8a8d97;
+    --accent: #e8a838;
+    --accent-dim: rgba(232, 168, 56, 0.15);
+    --accent-glow: rgba(232, 168, 56, 0.3);
+    --danger: #e85858;
+    --success: #38c878;
+    --border: #2a2d38;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    top: -30%; left: -10%;
+    width: 60vw; height: 60vw;
+    background: radial-gradient(circle, rgba(232,168,56,0.06) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -20%; right: -10%;
+    width: 50vw; height: 50vw;
+    background: radial-gradient(circle, rgba(56,200,120,0.04) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+  .container {
+    position: relative; z-index: 1;
+    max-width: 1200px; margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+
+  /* 头部 */
+  .header {
+    text-align: center; margin-bottom: 32px;
+    animation: fadeUp 0.8s ease;
+  }
+  .header h1 {
+    font-family: 'Noto Serif SC', serif;
+    font-weight: 900; font-size: 2.4rem;
+    letter-spacing: 0.06em; color: var(--fg); margin-bottom: 8px;
+  }
+  .header h1 span { color: var(--accent); }
+  .header p {
+    color: var(--fg-muted); font-size: 0.95rem;
+    font-weight: 300; letter-spacing: 0.04em;
+  }
+
+  /* 整体布局：左侧边栏 + 右侧内容 */
+  .app-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  /* 左侧边栏 */
+  .sidebar {
+    position: sticky; top: 20px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px;
+    animation: fadeUp 0.8s ease 0.15s both;
+  }
+  .sidebar-title {
+    font-size: 0.82rem; color: var(--fg-muted);
+    font-weight: 500; margin-bottom: 12px;
+    padding: 0 4px; letter-spacing: 0.04em;
+  }
+  .sidebar-add {
+    display: flex; gap: 8px; margin-bottom: 12px;
+  }
+  .sidebar-add input {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px;
+    color: var(--fg); font-size: 0.82rem; font-family: inherit;
+    outline: none; transition: border-color 0.3s;
+  }
+  .sidebar-add input:focus { border-color: var(--accent); }
+  .sidebar-add input::placeholder { color: rgba(138,141,151,0.5); font-size: 0.78rem; }
+  .btn-add-small {
+    background: var(--accent); color: var(--bg); border: none;
+    border-radius: 6px; padding: 8px 12px;
+    font-size: 0.82rem; font-weight: 700; font-family: inherit;
+    cursor: pointer; transition: transform 0.2s; white-space: nowrap;
+    min-height: 36px;
+  }
+  .btn-add-small:hover { transform: translateY(-1px); }
+
+  /* 房源列表 */
+  .house-list {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-bottom: 12px;
+  }
+  .house-item {
+    display: flex; align-items: center; gap: 0;
+    background: transparent; border: 1px solid transparent;
+    border-radius: 8px; overflow: hidden;
+    font-size: 0.85rem; color: var(--fg-muted);
+    cursor: pointer; transition: all 0.2s;
+  }
+  .house-item:hover { background: var(--bg-card-hover); }
+  .house-item.active {
+    background: var(--accent-dim); border-color: var(--accent);
+    color: var(--accent); font-weight: 500;
+  }
+  .house-item-name {
+    flex: 1; padding: 10px 12px; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .house-item .del-btn {
+    padding: 10px 10px; color: var(--fg-muted);
+    cursor: pointer; font-size: 0.8rem; transition: all 0.2s;
+    flex-shrink: 0; display: flex; align-items: center;
+    justify-content: center; min-width: 32px; min-height: 36px;
+    opacity: 0;
+  }
+  .house-item:hover .del-btn { opacity: 1; }
+  .house-item .del-btn:hover { color: var(--danger); background: rgba(232,88,88,0.1); }
+
+  .sidebar-delete {
+    width: 100%; background: transparent; border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px; font-size: 0.78rem;
+    color: var(--fg-muted); cursor: pointer; font-family: inherit;
+    transition: all 0.3s; min-height: 36px;
+  }
+  .sidebar-delete:hover { border-color: var(--danger); color: var(--danger); }
+
+  .sidebar-actions {
+    display: flex; gap: 6px; margin-top: 8px;
+  }
+  .sidebar-actions .btn-data {
+    flex: 1; font-size: 0.72rem; padding: 6px 4px;
+  }
+
+  /* 右侧内容 */
+  .content-area { min-width: 0; }
+
+  /* 内容标签页导航 */
+  .content-tabs {
+    display: flex; gap: 4px; margin-bottom: 20px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 4px;
+    animation: fadeUp 0.6s ease 0.1s both;
+  }
+  .content-tab {
+    flex: 1; padding: 10px 8px; text-align: center;
+    font-size: 0.82rem; font-weight: 500; color: var(--fg-muted);
+    background: transparent; border: none; border-radius: 8px;
+    cursor: pointer; font-family: inherit; transition: all 0.25s;
+    min-height: 40px;
+  }
+  .content-tab:hover { color: var(--fg); background: rgba(255,255,255,0.03); }
+  .content-tab.active {
+    background: var(--accent-dim); color: var(--accent);
+    font-weight: 700;
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* 信息汇总表格 */
+  .summary-table-wrap {
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .summary-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.82rem; min-width: 600px;
+  }
+  .summary-table th, .summary-table td {
+    padding: 10px 12px; text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .summary-table th {
+    background: rgba(255,255,255,0.03); color: var(--fg-muted);
+    font-weight: 500; position: sticky; top: 0; white-space: nowrap;
+  }
+  .summary-table th:first-child, .summary-table td:first-child {
+    text-align: left; white-space: nowrap; font-weight: 500;
+  }
+  .summary-table td { color: var(--fg); }
+  .summary-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .summary-table .dim-row td:first-child {
+    color: var(--accent); font-weight: 600;
+  }
+  .summary-table .total-row td {
+    border-top: 2px solid var(--accent); font-weight: 700; color: var(--accent);
+  }
+  .summary-table .note-row td {
+    font-size: 0.78rem; color: var(--fg-muted); font-style: italic;
+    max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* 图表对比 */
+  .chart-section {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+  }
+  .chart-section h3 {
+    font-size: 0.95rem; font-weight: 600; margin-bottom: 16px; color: var(--fg);
+  }
+  .radar-chart {
+    display: flex; justify-content: center; align-items: center;
+    padding: 20px 0;
+  }
+  .bar-chart { display: flex; flex-direction: column; gap: 16px; }
+  .bar-chart-item {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .bar-chart-label {
+    min-width: 80px; font-size: 0.82rem; color: var(--fg-muted);
+    text-align: right; flex-shrink: 0;
+  }
+  .bar-chart-track {
+    flex: 1; height: 28px; background: var(--border);
+    border-radius: 6px; overflow: hidden; position: relative;
+    display: flex;
+  }
+  .bar-chart-fill {
+    height: 100%; border-radius: 6px;
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 8px; font-size: 0.72rem; font-weight: 700;
+    min-width: 30px;
+  }
+  .chart-legend {
+    display: flex; gap: 16px; justify-content: center;
+    margin-top: 16px; flex-wrap: wrap;
+  }
+  .chart-legend-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.8rem; color: var(--fg-muted);
+  }
+  .chart-legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+
+  /* 权重编辑 */
+  .weight-edit-section {
+    margin-top: 16px; padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .weight-edit-title {
+    font-size: 0.8rem; color: var(--fg-muted); margin-bottom: 10px;
+    font-weight: 500;
+  }
+  .weight-edit-item {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 6px; font-size: 0.78rem;
+  }
+  .weight-edit-item .we-icon { font-size: 0.9rem; width: 20px; text-align: center; }
+  .weight-edit-item .we-name { flex: 1; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .weight-edit-item input[type="number"] {
+    width: 48px; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: 4px; padding: 4px 6px; color: var(--fg); font-size: 0.78rem;
+    font-family: inherit; text-align: center; outline: none;
+  }
+  .weight-edit-item input:focus { border-color: var(--accent); }
+  .weight-edit-item .we-unit { color: var(--fg-muted); font-size: 0.72rem; }
+  .weight-total {
+    display: flex; justify-content: space-between; margin-top: 8px;
+    padding-top: 8px; border-top: 1px solid var(--border);
+    font-size: 0.78rem; color: var(--fg-muted);
+  }
+  .weight-total.error { color: var(--danger); }
+
+  /* 维度卡片 */
+  .dimensions { display: flex; flex-direction: column; gap: 16px; }
+  .dim-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px;
+    transition: border-color 0.3s; animation: fadeUp 0.5s ease both;
+  }
+  .dim-card:hover { border-color: rgba(232,168,56,0.3); }
+  .dim-header {
+    display: flex; align-items: center;
+    justify-content: space-between; margin-bottom: 10px;
+  }
+  .dim-left { display: flex; align-items: center; gap: 12px; }
+  .dim-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; background: var(--accent-dim);
+  }
+  .dim-name { font-weight: 700; font-size: 1rem; }
+  .dim-weight {
+    background: var(--accent-dim); color: var(--accent);
+    font-size: 0.82rem; font-weight: 700;
+    padding: 4px 12px; border-radius: 20px;
+  }
+  .dim-desc {
+    color: var(--fg-muted); font-size: 0.85rem;
+    margin-bottom: 14px; font-weight: 300;
+    line-height: 1.6; padding-left: 48px;
+  }
+
+  /* 清单输入区 */
+  .dim-fields {
+    padding-left: 48px; margin-bottom: 14px;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px 20px;
+  }
+  .field-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.84rem; color: var(--fg-muted);
+  }
+  .field-label {
+    min-width: 80px; flex-shrink: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .field-item input[type="number"],
+  .field-item input[type="text"] {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px;
+    color: var(--fg); font-size: 0.84rem; font-family: inherit;
+    outline: none; transition: border-color 0.3s;
+  }
+  .field-item input:focus { border-color: var(--accent); }
+  .field-item input::placeholder { color: rgba(138,141,151,0.5); font-size: 0.78rem; }
+  .field-item select {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px;
+    color: var(--fg); font-size: 0.84rem; font-family: inherit;
+    outline: none; cursor: pointer; transition: border-color 0.3s;
+  }
+  .field-item select:focus { border-color: var(--accent); }
+  .field-item select option { background: var(--bg-card); color: var(--fg); }
+  .field-item input[type="checkbox"] {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border: 1.5px solid var(--border);
+    border-radius: 4px; background: transparent;
+    cursor: pointer; flex-shrink: 0; transition: all 0.2s; position: relative;
+  }
+  .field-item input[type="checkbox"]:checked {
+    background: var(--accent); border-color: var(--accent);
+  }
+  .field-item input[type="checkbox"]:checked::after {
+    content: '✓'; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%); font-size: 11px;
+    color: var(--bg); font-weight: 700;
+  }
+  .field-unit {
+    color: var(--fg-muted); font-size: 0.78rem; flex-shrink: 0;
+  }
+  .field-score {
+    min-width: 22px; text-align: center;
+    font-weight: 700; font-size: 0.78rem; color: var(--accent);
+    opacity: 0.7; flex-shrink: 0;
+  }
+  .field-item-full {
+    grid-column: 1 / -1;
+  }
+  .field-item-full input[type="text"] {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px;
+    color: var(--fg); font-size: 0.84rem; font-family: inherit;
+    outline: none; transition: border-color 0.3s;
+  }
+  .field-item-full input:focus { border-color: var(--accent); }
+  .field-item-full input::placeholder { color: rgba(138,141,151,0.5); font-size: 0.78rem; }
+
+  /* 整体备注 */
+  .overall-note-card .dim-fields { padding-left: 48px; }
+  .overall-note-input {
+    width: 100%; min-height: 80px; resize: vertical;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px;
+    color: var(--fg); font-size: 0.84rem; font-family: inherit;
+    outline: none; transition: border-color 0.3s; line-height: 1.5;
+  }
+  .overall-note-input:focus { border-color: var(--accent); }
+  .overall-note-input::placeholder { color: rgba(138,141,151,0.5); }
+
+  /* 自动评分进度 */
+  .auto-score-row {
+    padding-left: 48px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .auto-score-label {
+    font-size: 0.78rem; color: var(--fg-muted);
+  }
+  .auto-score-bar {
+    flex: 1; height: 4px; background: var(--border);
+    border-radius: 2px; overflow: hidden;
+  }
+  .auto-score-bar-fill {
+    height: 100%; border-radius: 2px;
+    transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* 评分滑块 */
+  .score-row {
+    display: flex; align-items: center; gap: 16px; padding-left: 48px;
+  }
+  .score-row input[type="range"] {
+    flex: 1; -webkit-appearance: none; appearance: none;
+    height: 6px; border-radius: 3px; background: var(--border);
+    outline: none;
+  }
+  .score-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    box-shadow: 0 0 10px var(--accent-glow); transition: transform 0.2s;
+  }
+  .score-row input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  .score-val {
+    min-width: 42px; text-align: center;
+    font-weight: 700; font-size: 1.1rem; color: var(--accent);
+  }
+  .score-auto-badge {
+    font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;
+    background: var(--accent-dim); color: var(--accent);
+    white-space: nowrap;
+  }
+  .score-manual-badge {
+    font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;
+    background: rgba(232,88,88,0.15); color: var(--danger);
+    white-space: nowrap; cursor: pointer;
+  }
+
+  /* 结果 */
+  .results {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 32px;
+    animation: fadeUp 0.8s ease 0.3s both;
+  }
+  .results h2 {
+    font-family: 'Noto Serif SC', serif; font-weight: 700;
+    font-size: 1.3rem; margin-bottom: 24px; color: var(--fg);
+  }
+  .result-list { display: flex; flex-direction: column; gap: 14px; }
+  .result-item {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 18px; background: rgba(255,255,255,0.02);
+    border-radius: 10px; transition: background 0.3s;
+  }
+  .result-item:hover { background: rgba(255,255,255,0.04); }
+  .result-rank {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 0.9rem; flex-shrink: 0;
+  }
+  .result-rank.gold { background: var(--accent); color: var(--bg); }
+  .result-rank.silver { background: #8a8d97; color: var(--bg); }
+  .result-rank.bronze { background: #a06840; color: var(--bg); }
+  .result-rank.normal { background: var(--border); color: var(--fg-muted); }
+  .result-name { flex: 1; font-weight: 500; font-size: 0.95rem; }
+  .result-bar-wrap {
+    flex: 2; height: 8px; background: var(--border);
+    border-radius: 4px; overflow: hidden;
+  }
+  .result-bar {
+    height: 100%; border-radius: 4px;
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .result-score {
+    min-width: 52px; text-align: right;
+    font-weight: 700; font-size: 1.05rem;
+  }
+  .result-detail {
+    margin-top: 16px; padding: 16px;
+    background: rgba(255,255,255,0.02); border-radius: 10px;
+  }
+  .result-detail-title {
+    font-size: 0.88rem; font-weight: 500; color: var(--fg);
+    margin-bottom: 10px; cursor: pointer;
+  }
+  .result-detail-title:hover { color: var(--accent); }
+  .result-detail-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 4px 20px;
+  }
+  .result-detail-item {
+    display: flex; justify-content: space-between;
+    font-size: 0.8rem; padding: 3px 0;
+  }
+  .result-detail-item .dl { color: var(--fg-muted); }
+  .result-detail-item .dv { color: var(--fg); font-weight: 500; }
+
+  /* 空状态 */
+  .empty-state {
+    text-align: center; padding: 60px 20px; color: var(--fg-muted);
+  }
+  .empty-state .icon { font-size: 3rem; margin-bottom: 16px; opacity: 0.4; }
+  .empty-state p { font-size: 0.95rem; font-weight: 300; }
+
+  /* 权重说明 */
+  .weight-legend {
+    margin-top: 24px; padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .weight-legend h3 {
+    font-size: 0.88rem; color: var(--fg-muted);
+    font-weight: 500; margin-bottom: 12px;
+  }
+  .weight-bars {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px 24px;
+  }
+  .weight-bar-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.82rem; color: var(--fg-muted);
+  }
+  .weight-bar-item .wb-label { min-width: 70px; }
+  .weight-bar-item .wb-track {
+    flex: 1; height: 4px; background: var(--border);
+    border-radius: 2px; overflow: hidden;
+  }
+  .weight-bar-item .wb-fill {
+    height: 100%; background: var(--accent);
+    border-radius: 2px; opacity: 0.6;
+  }
+  .weight-bar-item .wb-val { min-width: 32px; text-align: right; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* iPad / 触控优化 */
+  .field-item input[type="number"],
+  .field-item input[type="text"],
+  .field-item select {
+    min-height: 36px; font-size: 16px; /* 防止iOS缩放 */
+  }
+  .field-item input[type="checkbox"] {
+    width: 22px; height: 22px;
+  }
+  .field-item input[type="checkbox"]:checked::after {
+    font-size: 13px;
+  }
+  .score-row input[type="range"] {
+    height: 8px;
+  }
+  .score-row input[type="range"]::-webkit-slider-thumb {
+    width: 28px; height: 28px;
+  }
+  .house-item .del-btn { opacity: 0.5; } /* 触控设备始终可见 */
+  .btn-add-small { min-height: 44px; }
+
+  /* 存储状态指示器 */
+  .save-indicator {
+    position: fixed; top: 16px; right: 16px;
+    padding: 6px 14px; border-radius: 20px;
+    font-size: 0.75rem; font-weight: 500;
+    background: var(--bg-card); border: 1px solid var(--border);
+    color: var(--fg-muted); z-index: 100;
+    transition: all 0.3s; opacity: 0;
+    pointer-events: none;
+  }
+  .save-indicator.saving { opacity: 1; color: var(--accent); border-color: var(--accent); }
+  .save-indicator.saved { opacity: 1; color: var(--success); border-color: var(--success); }
+
+  /* 按钮通用 */
+  .btn-data {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 14px;
+    font-size: 0.78rem; color: var(--fg-muted);
+    cursor: pointer; font-family: inherit;
+    transition: all 0.3s; min-height: 36px;
+  }
+  .btn-data:hover { border-color: var(--accent); color: var(--fg); }
+  .btn-data.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* 安全区域适配 (iPhone X+ / iPad) */
+  .container {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 手机端：侧边栏变顶部横向列表 */
+  @media (max-width: 768px) {
+    .app-layout {
+      grid-template-columns: 1fr;
+    }
+    .sidebar {
+      position: static;
+      padding: 12px;
+    }
+    .house-list {
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .house-item {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .house-item .del-btn { opacity: 0.5; padding: 8px 8px; }
+    .sidebar-delete { display: none; }
+    .header h1 { font-size: 1.6rem; }
+    .dim-desc, .score-row, .dim-fields, .auto-score-row { padding-left: 0; }
+    .overall-note-card .dim-fields { padding-left: 0; }
+    .dim-fields { grid-template-columns: 1fr; }
+    .weight-bars { grid-template-columns: 1fr; }
+    .results { padding: 20px; }
+    .result-bar-wrap { display: none; }
+    .result-detail-grid { grid-template-columns: 1fr; }
+    .content-tabs { font-size: 0.75rem; }
+    .content-tab { padding: 8px 4px; font-size: 0.75rem; }
+  }
+  /* iPad 竖屏 */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .container { max-width: 100%; padding: 32px 20px 80px; }
+    .app-layout { grid-template-columns: 260px 1fr; }
+    .dim-fields { grid-template-columns: 1fr 1fr; }
+  }
+  /* iPad 横屏 / 桌面 */
+  @media (min-width: 1025px) {
+    .container { max-width: 1200px; }
+    .app-layout { grid-template-columns: 300px 1fr; }
+    .dim-fields { grid-template-columns: 1fr 1fr; }
+    .summary-table { min-width: 800px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="save-indicator" id="saveIndicator">已保存</div>
+
+<div class="container">
+  <header class="header">
+    <h1>租房<span>评分</span>工具</h1>
+    <p>添加房源 · 填写详情 · 自动评分 · 综合对比</p>
+  </header>
+
+  <div class="app-layout">
+    <div class="sidebar">
+      <div class="sidebar-title">房源列表</div>
+      <div class="sidebar-add">
+        <input type="text" id="houseInput" placeholder="输入房源名称" maxlength="30">
+        <button class="btn-add-small" onclick="addHouse()">添加</button>
+      </div>
+      <div class="house-list" id="houseList"></div>
+      <button class="sidebar-delete" id="deleteCurrentBtn" onclick="deleteCurrentHouse()">删除当前房源</button>
+      <div class="sidebar-actions">
+        <button class="btn-data" onclick="exportData()">导出</button>
+        <button class="btn-data" onclick="importData()">导入</button>
+        <button class="btn-data danger" onclick="clearAllData()">清空</button>
+      </div>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
+    </div>
+
+    <div class="content-area">
+      <div class="content-tabs">
+        <button class="content-tab active" onclick="switchContentTab('form')">评分填写</button>
+        <button class="content-tab" onclick="switchContentTab('rank')">综合排名</button>
+        <button class="content-tab" onclick="switchContentTab('table')">信息汇总</button>
+        <button class="content-tab" onclick="switchContentTab('chart')">图表对比</button>
+      </div>
+
+      <div class="tab-panel active" id="panel-form">
+        <div class="dimensions" id="dimensions"></div>
+      </div>
+
+      <div class="tab-panel" id="panel-rank">
+        <div class="results" id="results">
+          <h2>综合评分排名</h2>
+          <div id="resultContent">
+            <div class="empty-state">
+              <div class="icon">🏠</div>
+              <p>添加房源并填写信息后，这里将显示综合排名</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="panel-table">
+        <div id="tableContent">
+          <div class="empty-state">
+            <div class="icon">📊</div>
+            <p>添加房源后，这里将显示信息汇总表格</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="panel-chart">
+        <div id="chartContent">
+          <div class="empty-state">
+            <div class="icon">📈</div>
+            <p>添加房源后，这里将显示图表对比</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 字段类型说明:
+// number: 数字输入, scoring: { best, worst } — best对应10分, worst对应1分, 自动线性插值
+// select: 下拉选择, options: [{ label, score }] — 每个选项对应一个分数
+// check: 勾选, scoring: { checked, unchecked } — 勾选/未勾选对应分数
+const DIMENSIONS = [
+  {
+    id: 'rent', name: '租金性价比', weight: 18, icon: '💰',
+    desc: '月租费用、包含项目及付款方式',
+    fields: [
+      { key: 'monthly', label: '月租', type: 'number', unit: '元', placeholder: '如3000', scoring: { best: 1500, worst: 5500 } },
+      { key: 'deposit', label: '押金', type: 'number', unit: '元', placeholder: '如3000', scoring: { best: 0, worst: 5000 } },
+      { key: 'payment', label: '付款方式', type: 'select', options: [
+        { label: '月付', score: 10 }, { label: '押一付一', score: 9 }, { label: '押一付三', score: 6 },
+        { label: '押一付六', score: 4 }, { label: '年付', score: 2 }
+      ]},
+      { key: 'incl_mgmt', label: '含物业费', type: 'check', scoring: { checked: 10, unchecked: 4 } },
+      { key: 'incl_net', label: '含网费', type: 'check', scoring: { checked: 10, unchecked: 4 } },
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'commute', name: '通勤便利', weight: 15, icon: '🚇',
+    desc: '到公司距离与时间，公共交通可达性',
+    fields: [
+      { key: 'time', label: '通勤时间', type: 'number', unit: '分钟', placeholder: '如25', scoring: { best: 10, worst: 60 } },
+      { key: 'metro_dist', label: '地铁距离', type: 'number', unit: '米', placeholder: '如500', scoring: { best: 100, worst: 2000 } },
+      { key: 'bus', label: '公交可达', type: 'select', options: [
+        { label: '门口即站', score: 10 }, { label: '5分钟内', score: 8 },
+        { label: '10分钟内', score: 5 }, { label: '较远', score: 2 }
+      ]},
+      { key: 'alt_route', label: '备选路线', type: 'check', scoring: { checked: 8, unchecked: 4 } },
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'quality', name: '房屋品质', weight: 15, icon: '🏗️',
+    desc: '房屋硬件条件与居住舒适度',
+    fields: [
+      { key: 'floor_flat', label: '地面平整', type: 'select', options: [
+        { label: '平整(机器人可通行)', score: 10 }, { label: '基本平整', score: 7 }, { label: '有门槛/台阶', score: 3 }
+      ]},
+      { key: 'odor', label: '异味情况', type: 'select', options: [
+        { label: '无异味', score: 10 }, { label: '轻微味道', score: 6 }, { label: '有明显异味', score: 2 }
+      ]},
+      { key: 'bathroom', label: '卫浴环境', type: 'select', options: [
+        { label: '干湿分离/整洁', score: 10 }, { label: '一般', score: 6 }, { label: '老旧/脏', score: 2 }
+      ]},
+      { key: 'drain', label: '浴室下水', type: 'select', options: [
+        { label: '通畅', score: 10 }, { label: '稍慢', score: 6 }, { label: '容易堵', score: 2 }
+      ]},
+      { key: 'light', label: '采光通风', type: 'select', options: [
+        { label: '很好', score: 10 }, { label: '一般', score: 6 }, { label: '较差', score: 2 }
+      ]},
+      { key: 'soundproof', label: '隔音效果', type: 'select', options: [
+        { label: '很好', score: 10 }, { label: '一般', score: 6 }, { label: '较差', score: 2 }
+      ]},
+      { key: 'curtain', label: '窗帘遮光', type: 'select', options: [
+        { label: '遮光很好', score: 10 }, { label: '一般', score: 6 }, { label: '不遮光', score: 2 }
+      ]},
+      { key: 'decor', label: '装修新旧', type: 'select', options: [
+        { label: '新装修', score: 10 }, { label: '较新', score: 7 }, { label: '老旧', score: 3 }
+      ]},
+      { key: 'appliance_ok', label: '家电完好', type: 'check', scoring: { checked: 10, unchecked: 3 } },
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'appliance', name: '电器能耗', weight: 10, icon: '⚡',
+    desc: '常用电器配置及能耗等级，影响日常电费',
+    fields: [
+      { key: 'ac_master', label: '主卧空调', type: 'select', options: [
+        { label: '一级能效', score: 10 }, { label: '二级能效', score: 8 },
+        { label: '三级能效', score: 5 }, { label: '四级/五级', score: 2 }, { label: '无', score: 1 }
+      ]},
+      { key: 'ac_second', label: '次卧空调', type: 'select', options: [
+        { label: '一级能效', score: 10 }, { label: '二级能效', score: 8 },
+        { label: '三级能效', score: 5 }, { label: '四级/五级', score: 2 }, { label: '无', score: 1 }
+      ]},
+      { key: 'ac_gaming', label: '电竞房空调', type: 'select', options: [
+        { label: '一级能效', score: 10 }, { label: '二级能效', score: 8 },
+        { label: '三级能效', score: 5 }, { label: '四级/五级', score: 2 }, { label: '无', score: 1 }
+      ]},
+      { key: 'ac_living', label: '客厅空调', type: 'select', options: [
+        { label: '一级能效', score: 10 }, { label: '二级能效', score: 8 },
+        { label: '三级能效', score: 5 }, { label: '四级/五级', score: 2 }, { label: '无', score: 1 }
+      ]},
+      { key: 'fridge_level', label: '冰箱能效', type: 'select', options: [
+        { label: '一级能效', score: 10 }, { label: '二级能效', score: 8 },
+        { label: '三级能效', score: 5 }, { label: '四级/五级', score: 2 }, { label: '无冰箱', score: 1 }
+      ]},
+      { key: 'heater', label: '热水器', type: 'select', options: [
+        { label: '燃气(即热)', score: 10 }, { label: '电即热', score: 7 },
+        { label: '电储水', score: 5 }, { label: '太阳能', score: 6 }, { label: '无', score: 1 }
+      ]},
+      { key: 'gas_stove', label: '燃气灶', type: 'check', scoring: { checked: 9, unchecked: 3 } },
+      { key: 'range_hood', label: '油烟机', type: 'select', options: [
+        { label: '吸力强', score: 10 }, { label: '一般', score: 6 }, { label: '吸力弱/无', score: 2 }
+      ]},
+      { key: 'washer', label: '洗衣机', type: 'select', options: [
+        { label: '有且可用', score: 9 }, { label: '有但老旧', score: 5 }, { label: '无', score: 2 }
+      ]},
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'layout', name: '户型布局', weight: 10, icon: '📐',
+    desc: '房间功能分区与家具配置',
+    fields: [
+      { key: 'rooms', label: '房间配置', type: 'select', options: [
+        { label: '三房两卧一电竞房', score: 10 }, { label: '三房可改电竞房', score: 8 },
+        { label: '两房+客厅改', score: 5 }, { label: '不满足', score: 2 }
+      ]},
+      { key: 'gaming_desk', label: '电竞房桌子', type: 'check', scoring: { checked: 10, unchecked: 3 } },
+      { key: 'tv_wall', label: '投影/电视墙面', type: 'select', options: [
+        { label: '有平整墙面', score: 10 }, { label: '有电视', score: 8 }, { label: '墙面不合适', score: 3 }
+      ]},
+      { key: 'shoe_cabinet', label: '入户鞋柜', type: 'select', options: [
+        { label: '有且质量好', score: 10 }, { label: '有但一般', score: 6 }, { label: '无', score: 2 }
+      ]},
+      { key: 'kitchen_storage', label: '厨房收纳', type: 'select', options: [
+        { label: '充足', score: 10 }, { label: '一般', score: 6 }, { label: '不足', score: 2 }
+      ]},
+      { key: 'wet_dry', label: '干湿分离', type: 'check', scoring: { checked: 9, unchecked: 4 } },
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'safety', name: '居住安全', weight: 10, icon: '🔒',
+    desc: '小区安保与个人隐私保护',
+    fields: [
+      { key: 'security', label: '安保门禁', type: 'select', options: [
+        { label: '24h安保+门禁', score: 10 }, { label: '有门禁', score: 7 },
+        { label: '仅监控', score: 4 }, { label: '无', score: 1 }
+      ]},
+      { key: 'area_safe', label: '周边治安', type: 'select', options: [
+        { label: '很好', score: 10 }, { label: '一般', score: 6 }, { label: '较差', score: 2 }
+      ]},
+      { key: 'privacy', label: '隐私性', type: 'select', options: [
+        { label: '无对视问题', score: 10 }, { label: '部分对视', score: 6 }, { label: '严重对视', score: 2 }
+      ]},
+      { key: 'fire_exit', label: '消防通道', type: 'check', scoring: { checked: 9, unchecked: 2 } },
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'amenities', name: '生活配套', weight: 9, icon: '🛒',
+    desc: '日常必需设施的距离与丰富度',
+    fields: [
+      { key: 'market', label: '超市/菜场', type: 'select', options: [
+        { label: '步行5分钟内', score: 10 }, { label: '10分钟内', score: 7 },
+        { label: '较远', score: 3 }
+      ]},
+      { key: 'hospital', label: '医院/药店', type: 'select', options: [
+        { label: '步行5分钟内', score: 10 }, { label: '10分钟内', score: 7 },
+        { label: '较远', score: 3 }
+      ]},
+      { key: 'food', label: '餐饮丰富度', type: 'select', options: [
+        { label: '非常丰富', score: 10 }, { label: '一般', score: 6 }, { label: '较少', score: 3 }
+      ]},
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'parking', name: '停车与充电', weight: 8, icon: '🅿️',
+    desc: '汽车与电动车停放、充电条件',
+    fields: [
+      { key: 'car_park', label: '🚗 停车', type: 'select', options: [
+        { label: '有固定车位', score: 10 }, { label: '临时可停', score: 6 }, { label: '停车困难', score: 2 }
+      ]},
+      { key: 'car_location', label: '🚗 室内/室外', type: 'select', options: [
+        { label: '地下车库', score: 10 }, { label: '室内', score: 8 }, { label: '室外', score: 4 }
+      ]},
+      { key: 'car_rent', label: '🚗 停车费用', type: 'select', options: [
+        { label: '免费', score: 10 }, { label: '需租(合理)', score: 6 }, { label: '需租(贵)', score: 2 }
+      ]},
+      { key: 'ev_charge', label: '🚗 新能源充电', type: 'select', options: [
+        { label: '小区内有桩', score: 10 }, { label: '附近有', score: 6 }, { label: '不方便', score: 2 }
+      ]},
+      { key: 'ebike_park', label: '🛵 停放', type: 'select', options: [
+        { label: '有固定车位', score: 10 }, { label: '临时可停', score: 6 }, { label: '停车困难', score: 2 }
+      ]},
+      { key: 'ebike_location', label: '🛵 室内/室外', type: 'select', options: [
+        { label: '地下车库', score: 10 }, { label: '室内', score: 8 }, { label: '室外', score: 4 }
+      ]},
+      { key: 'ebike_rent', label: '🛵 停车费用', type: 'select', options: [
+        { label: '免费', score: 10 }, { label: '需租(合理)', score: 6 }, { label: '需租(贵)', score: 2 }
+      ]},
+      { key: 'ebike_charge', label: '🛵 充电', type: 'select', options: [
+        { label: '小区内充电桩', score: 10 }, { label: '附近有', score: 6 }, { label: '不方便', score: 2 }
+      ]},
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'landlord', name: '房东/中介', weight: 6, icon: '🤝',
+    desc: '房东态度与合同条款',
+    fields: [
+      { key: 'attitude', label: '沟通态度', type: 'select', options: [
+        { label: '很好', score: 10 }, { label: '一般', score: 6 }, { label: '较差', score: 2 }
+      ]},
+      { key: 'repair', label: '维修响应', type: 'select', options: [
+        { label: '及时', score: 10 }, { label: '一般', score: 6 }, { label: '拖延', score: 2 }
+      ]},
+      { key: 'contract', label: '合同公平', type: 'check', scoring: { checked: 9, unchecked: 3 } },
+      { key: 'hidden_fee', label: '无隐形收费', type: 'check', scoring: { checked: 9, unchecked: 2 } },
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'noise', name: '噪音环境', weight: 4, icon: '🔇',
+    desc: '内外部噪音影响',
+    fields: [
+      { key: 'road', label: '临街噪音', type: 'select', options: [
+        { label: '不临街', score: 10 }, { label: '次干道', score: 6 }, { label: '主干道', score: 2 }
+      ]},
+      { key: 'neighbor', label: '邻居噪音', type: 'select', options: [
+        { label: '安静', score: 10 }, { label: '偶尔', score: 6 }, { label: '经常', score: 2 }
+      ]},
+      { key: 'construction', label: '施工影响', type: 'check', scoring: { checked: 2, unchecked: 10 } },
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'community', name: '小区环境', weight: 4, icon: '🌳',
+    desc: '小区整体环境与设施',
+    fields: [
+      { key: 'green', label: '绿化卫生', type: 'select', options: [
+        { label: '很好', score: 10 }, { label: '一般', score: 6 }, { label: '较差', score: 2 }
+      ]},
+      { key: 'elevator', label: '电梯', type: 'select', options: [
+        { label: '有且正常', score: 10 }, { label: '有但老旧', score: 6 }, { label: '无电梯', score: 3 }
+      ]},
+      { key: 'delivery', label: '快递外卖', type: 'select', options: [
+        { label: '方便', score: 10 }, { label: '一般', score: 6 }, { label: '不便', score: 2 }
+      ]},
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+  {
+    id: 'potential', name: '升值潜力', weight: 3, icon: '📈',
+    desc: '周边规划与区域发展前景',
+    fields: [
+      { key: 'plan', label: '周边规划', type: 'select', options: [
+        { label: '有明确利好', score: 10 }, { label: '有规划待定', score: 6 }, { label: '无', score: 3 }
+      ]},
+      { key: 'dev', label: '发展潜力', type: 'select', options: [
+        { label: '高', score: 10 }, { label: '一般', score: 6 }, { label: '低', score: 3 }
+      ]},
+      { key: 'note', label: '备注', type: 'text', placeholder: '其他补充...' },
+    ]
+  },
+];
+
+let houses = [];
+let activeHouse = null;
+let scores = {};
+let autoScores = {};
+let fieldValues = {};
+let manualOverride = {};
+let overallNotes = {};
+
+const STORAGE_KEY = 'rent_score_data';
+
+function genId() {
+  return 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+}
+
+// ====== 数据持久化 ======
+function saveData() {
+  const indicator = document.getElementById('saveIndicator');
+  indicator.textContent = '保存中...';
+  indicator.className = 'save-indicator saving';
+  try {
+    const data = { houses, activeHouse, scores, autoScores, fieldValues, manualOverride, overallNotes, weights: DIMENSIONS.map(d => ({ id: d.id, weight: d.weight })) };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    setTimeout(() => {
+      indicator.textContent = '已保存';
+      indicator.className = 'save-indicator saved';
+      setTimeout(() => { indicator.className = 'save-indicator'; }, 1500);
+    }, 200);
+  } catch (e) {
+    indicator.textContent = '保存失败';
+    indicator.className = 'save-indicator saving';
+    setTimeout(() => { indicator.className = 'save-indicator'; }, 2000);
+  }
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    houses = data.houses || [];
+    activeHouse = data.activeHouse || null;
+    scores = data.scores || {};
+    autoScores = data.autoScores || {};
+    fieldValues = data.fieldValues || {};
+    manualOverride = data.manualOverride || {};
+    overallNotes = data.overallNotes || {};
+    // 恢复权重
+    if (data.weights) {
+      data.weights.forEach(w => {
+        const dim = DIMENSIONS.find(d => d.id === w.id);
+        if (dim) dim.weight = w.weight;
+      });
+    }
+    // 确保每个房源都有新维度的字段（兼容数据结构变更）
+    houses.forEach(h => {
+      DIMENSIONS.forEach(d => {
+        if (!fieldValues[h.id]) fieldValues[h.id] = {};
+        if (!fieldValues[h.id][d.id]) fieldValues[h.id][d.id] = {};
+        if (!scores[h.id]) scores[h.id] = {};
+        if (!scores[h.id][d.id]) scores[h.id][d.id] = 5;
+        if (!autoScores[h.id]) autoScores[h.id] = {};
+        if (!autoScores[h.id][d.id]) autoScores[h.id][d.id] = 5;
+        if (!manualOverride[h.id]) manualOverride[h.id] = {};
+        if (manualOverride[h.id][d.id] === undefined) manualOverride[h.id][d.id] = false;
+        d.fields.forEach(f => {
+          if (fieldValues[h.id][d.id][f.key] === undefined) {
+            fieldValues[h.id][d.id][f.key] = f.type === 'check' ? false : '';
+          }
+        });
+      });
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function exportData() {
+  const data = { houses, scores, autoScores, fieldValues, manualOverride, overallNotes, weights: DIMENSIONS.map(d => ({ id: d.id, weight: d.weight })), exportTime: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `租房评分_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData() {
+  document.getElementById('importFile').click();
+}
+
+function handleImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.houses || !data.scores) throw new Error('数据格式错误');
+      houses = data.houses || [];
+      scores = data.scores || {};
+      autoScores = data.autoScores || {};
+      fieldValues = data.fieldValues || {};
+      manualOverride = data.manualOverride || {};
+      overallNotes = data.overallNotes || {};
+      if (data.weights) {
+        data.weights.forEach(w => {
+          const dim = DIMENSIONS.find(d => d.id === w.id);
+          if (dim) dim.weight = w.weight;
+        });
+      }
+      activeHouse = houses.length ? houses[0].id : null;
+      saveData();
+      render();
+      alert('导入成功！');
+    } catch (err) {
+      alert('导入失败：' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function clearAllData() {
+  if (!confirm('确定要清除所有房源数据吗？此操作不可恢复。')) return;
+  houses = [];
+  activeHouse = null;
+  scores = {};
+  autoScores = {};
+  fieldValues = {};
+  manualOverride = {};
+  overallNotes = {};
+  localStorage.removeItem(STORAGE_KEY);
+  render();
+}
+
+function addHouse() {
+  const input = document.getElementById('houseInput');
+  const name = input.value.trim();
+  if (!name) return;
+  if (houses.length >= 8) { alert('最多添加8个房源进行对比'); return; }
+  const id = genId();
+  houses.push({ id, name });
+  scores[id] = {};
+  autoScores[id] = {};
+  fieldValues[id] = {};
+  manualOverride[id] = {};
+  overallNotes[id] = '';
+  DIMENSIONS.forEach(d => {
+    scores[id][d.id] = 5;
+    autoScores[id][d.id] = 5;
+    fieldValues[id][d.id] = {};
+    manualOverride[id][d.id] = false;
+    d.fields.forEach(f => {
+      if (f.type === 'check') fieldValues[id][d.id][f.key] = false;
+      else if (f.type === 'select') fieldValues[id][d.id][f.key] = '';
+      else fieldValues[id][d.id][f.key] = '';
+    });
+  });
+  input.value = '';
+  activeHouse = id;
+  saveData();
+  render();
+}
+
+document.getElementById('houseInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addHouse();
+});
+
+function removeHouse(id) {
+  houses = houses.filter(h => h.id !== id);
+  delete scores[id]; delete autoScores[id];
+  delete fieldValues[id]; delete manualOverride[id];
+  delete overallNotes[id];
+  if (activeHouse === id) activeHouse = houses.length ? houses[0].id : null;
+  saveData();
+  render();
+}
+
+function switchHouse(id) { activeHouse = id; saveData(); render(); }
+
+// 计算单个字段的得分
+function calcFieldScore(dim, field, value) {
+  if (value === '' || value === undefined || value === null) return null;
+  if (field.type === 'number') {
+    const num = parseFloat(value);
+    if (isNaN(num)) return null;
+    const { best, worst } = field.scoring;
+    if (best === worst) return 10;
+    // lower is better by default for rent/commute etc.
+    const ratio = (worst - num) / (worst - best);
+    return Math.round(Math.min(10, Math.max(1, ratio * 9 + 1)) * 10) / 10;
+  }
+  if (field.type === 'select') {
+    const opt = field.options.find(o => o.label === value);
+    return opt ? opt.score : null;
+  }
+  if (field.type === 'check') {
+    return value ? field.scoring.checked : field.scoring.unchecked;
+  }
+  return null;
+}
+
+// 计算维度自动得分
+function calcAutoScore(houseId, dimId) {
+  const dim = DIMENSIONS.find(d => d.id === dimId);
+  if (!dim) return 5;
+  const vals = fieldValues[houseId][dimId];
+  let total = 0, count = 0;
+  dim.fields.forEach(f => {
+    const s = calcFieldScore(dim, f, vals[f.key]);
+    if (s !== null) { total += s; count++; }
+  });
+  return count > 0 ? Math.round(total / count * 10) / 10 : 5;
+}
+
+function setFieldValue(dimId, fieldKey, value) {
+  if (!activeHouse) return;
+  fieldValues[activeHouse][dimId][fieldKey] = value;
+  const auto = calcAutoScore(activeHouse, dimId);
+  autoScores[activeHouse][dimId] = auto;
+  if (!manualOverride[activeHouse][dimId]) {
+    scores[activeHouse][dimId] = auto;
+  }
+  // 局部更新，不重建整个表单
+  updateDimScoreDisplay(dimId);
+  saveData();
+  renderResults();
+  renderTable();
+  renderChart();
+}
+
+function setManualScore(dimId, val) {
+  if (!activeHouse) return;
+  scores[activeHouse][dimId] = parseInt(val);
+  manualOverride[activeHouse][dimId] = true;
+  saveData();
+  renderResults();
+}
+
+function resetToAuto(dimId) {
+  if (!activeHouse) return;
+  manualOverride[activeHouse][dimId] = false;
+  scores[activeHouse][dimId] = autoScores[activeHouse][dimId];
+  saveData();
+  // 恢复自动时需要重新渲染该维度（更新滑块和badge）
+  renderDimensions();
+  renderResults();
+}
+
+function setOverallNote(val) {
+  if (!activeHouse) return;
+  overallNotes[activeHouse] = val;
+  saveData();
+}
+
+// 局部更新某个维度的分数显示，不重建输入控件
+function updateDimScoreDisplay(dimId) {
+  const auto = autoScores[activeHouse][dimId];
+  const val = scores[activeHouse][dimId];
+  const pct = (auto / 10 * 100).toFixed(0);
+  const barColor = auto >= 7 ? 'var(--success)' : auto >= 4 ? 'var(--accent)' : 'var(--danger)';
+
+  // 更新自动评分条
+  const barFill = document.getElementById('asbar_' + dimId);
+  const barText = document.getElementById('astxt_' + dimId);
+  if (barFill) { barFill.style.width = pct + '%'; barFill.style.background = barColor; }
+  if (barText) { barText.textContent = auto.toFixed(1); barText.style.color = barColor; }
+
+  // 更新滑块值
+  const slider = document.getElementById('slider_' + dimId);
+  const sliderVal = document.getElementById('sval_' + dimId);
+  if (slider && !manualOverride[activeHouse][dimId]) slider.value = val;
+  if (sliderVal) sliderVal.textContent = val;
+
+  // 更新各字段分数
+  const dim = DIMENSIONS.find(d => d.id === dimId);
+  if (dim) {
+    dim.fields.forEach(f => {
+      const fsEl = document.getElementById('fs_' + dimId + '_' + f.key);
+      if (fsEl) {
+        const s = calcFieldScore(dim, f, fieldValues[activeHouse][dimId][f.key]);
+        fsEl.textContent = s !== null ? s : '';
+      }
+    });
+  }
+}
+
+function render() {
+  renderHouseList();
+  renderDimensions();
+  renderResults();
+  renderTable();
+  renderChart();
+  renderWeightEdit();
+}
+
+function renderHouseList() {
+  const el = document.getElementById('houseList');
+  const delBtn = document.getElementById('deleteCurrentBtn');
+  if (!houses.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--fg-muted);font-size:0.8rem;padding:16px 0;opacity:0.5">暂无房源</div>';
+    delBtn.style.display = 'none';
+    return;
+  }
+  delBtn.style.display = '';
+  el.innerHTML = houses.map(h => `
+    <div class="house-item ${h.id === activeHouse ? 'active' : ''}" onclick="switchHouse('${h.id}')">
+      <span class="house-item-name">${h.name}</span>
+      <span class="del-btn" onclick="event.stopPropagation(); removeHouse('${h.id}')">✕</span>
+    </div>
+  `).join('');
+}
+
+function deleteCurrentHouse() {
+  if (!activeHouse) return;
+  const h = houses.find(h => h.id === activeHouse);
+  if (h && confirm(`确定删除「${h.name}」吗？`)) {
+    removeHouse(activeHouse);
+  }
+}
+
+function renderField(dim, field, houseId) {
+  const dimId = dim.id;
+  const val = fieldValues[houseId][dimId][field.key];
+  const score = calcFieldScore(dim, field, val);
+  const scoreId = `fs_${dimId}_${field.key}`;
+
+  if (field.type === 'number') {
+    return `
+      <div class="field-item">
+        <span class="field-label">${field.label}</span>
+        <input type="number" value="${val || ''}" placeholder="${field.placeholder || ''}"
+          oninput="setFieldValue('${dimId}','${field.key}',this.value)">
+        <span class="field-unit">${field.unit || ''}</span>
+        <span class="field-score" id="${scoreId}">${score !== null ? score : ''}</span>
+      </div>`;
+  }
+  if (field.type === 'select') {
+    return `
+      <div class="field-item">
+        <span class="field-label">${field.label}</span>
+        <select onchange="setFieldValue('${dimId}','${field.key}',this.value)">
+          <option value="">请选择</option>
+          ${field.options.map(o => `<option ${val === o.label ? 'selected' : ''}>${o.label}</option>`).join('')}
+        </select>
+        <span class="field-score" id="${scoreId}">${score !== null ? score : ''}</span>
+      </div>`;
+  }
+  if (field.type === 'check') {
+    return `
+      <div class="field-item">
+        <input type="checkbox" ${val ? 'checked' : ''}
+          onchange="setFieldValue('${dimId}','${field.key}',this.checked)">
+        <span class="field-label">${field.label}</span>
+        <span class="field-score" id="${scoreId}">${score !== null ? score : ''}</span>
+      </div>`;
+  }
+  if (field.type === 'text') {
+    return `
+      <div class="field-item field-item-full">
+        <span class="field-label">${field.label}</span>
+        <input type="text" value="${val || ''}" placeholder="${field.placeholder || ''}"
+          oninput="setFieldValue('${dimId}','${field.key}',this.value)">
+      </div>`;
+  }
+  return '';
+}
+
+function renderDimensions() {
+  const el = document.getElementById('dimensions');
+  if (!activeHouse) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>请先添加房源，然后填写信息</p></div>`;
+    return;
+  }
+  el.innerHTML = DIMENSIONS.map((d, i) => {
+    const val = scores[activeHouse][d.id];
+    const auto = autoScores[activeHouse][d.id];
+    const isManual = manualOverride[activeHouse][d.id];
+    const pct = (auto / 10 * 100).toFixed(0);
+    const barColor = auto >= 7 ? 'var(--success)' : auto >= 4 ? 'var(--accent)' : 'var(--danger)';
+
+    return `
+    <div class="dim-card" style="animation-delay: ${i * 0.04}s">
+      <div class="dim-header">
+        <div class="dim-left">
+          <div class="dim-icon">${d.icon}</div>
+          <span class="dim-name">${d.name}</span>
+        </div>
+        <span class="dim-weight">权重 ${d.weight}%</span>
+      </div>
+      <div class="dim-desc">${d.desc}</div>
+      <div class="dim-fields">
+        ${d.fields.map(f => renderField(d, f, activeHouse)).join('')}
+      </div>
+      <div class="auto-score-row">
+        <span class="auto-score-label">自动评分</span>
+        <div class="auto-score-bar">
+          <div class="auto-score-bar-fill" id="asbar_${d.id}" style="width:${pct}%;background:${barColor}"></div>
+        </div>
+        <span id="astxt_${d.id}" style="font-size:0.82rem;font-weight:700;color:${barColor}">${auto.toFixed(1)}</span>
+      </div>
+      <div class="score-row">
+        <span style="color:var(--fg-muted);font-size:0.8rem">1</span>
+        <input type="range" id="slider_${d.id}" min="1" max="10" value="${val}"
+          oninput="setManualScore('${d.id}', this.value); document.getElementById('sval_${d.id}').textContent = this.value">
+        <span class="score-val" id="sval_${d.id}">${val}</span>
+        <span style="color:var(--fg-muted);font-size:0.8rem">10</span>
+        ${isManual
+          ? `<span class="score-manual-badge" onclick="resetToAuto('${d.id}')" title="点击恢复自动评分">手动调整 ✕</span>`
+          : `<span class="score-auto-badge">自动</span>`
+        }
+      </div>
+    </div>`;
+  }).join('') + `
+  <div class="dim-card overall-note-card">
+    <div class="dim-header">
+      <div class="dim-left">
+        <div class="dim-icon">📝</div>
+        <span class="dim-name">整体备注</span>
+      </div>
+    </div>
+    <div class="dim-desc">对该房源的整体印象、注意事项等</div>
+    <div class="dim-fields" style="grid-template-columns:1fr">
+      <div class="field-item field-item-full">
+        <textarea class="overall-note-input" placeholder="输入整体备注..."
+          oninput="setOverallNote(this.value)">${overallNotes[activeHouse] || ''}</textarea>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderResults() {
+  const el = document.getElementById('resultContent');
+  if (!houses.length) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">🏠</div><p>添加房源并填写信息后，这里将显示综合排名</p></div>`;
+    return;
+  }
+
+  const ranked = houses.map(h => {
+    let total = 0;
+    DIMENSIONS.forEach(d => {
+      total += (scores[h.id][d.id] / 10) * d.weight;
+    });
+    return { ...h, score: total };
+  }).sort((a, b) => b.score - a.score);
+
+  el.innerHTML = `
+    <div class="result-list">
+      ${ranked.map((h, i) => {
+        const pct = (h.score / 100 * 100).toFixed(1);
+        const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
+        const barColor = i === 0 ? 'var(--accent)' : i === 1 ? '#8a8d97' : i === 2 ? '#a06840' : 'var(--fg-muted)';
+        return `
+        <div class="result-item">
+          <div class="result-rank ${rankClass}">${i + 1}</div>
+          <span class="result-name">${h.name}</span>
+          <div class="result-bar-wrap">
+            <div class="result-bar" style="width:${pct}%;background:${barColor}"></div>
+          </div>
+          <span class="result-score" style="color:${barColor}">${h.score.toFixed(1)}</span>
+        </div>`;
+      }).join('')}
+    </div>
+    ${ranked.length > 0 ? `
+    <div class="result-detail">
+      <div class="result-detail-title" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
+        ▾ 各维度得分对比
+      </div>
+      <div class="result-detail-grid" style="display:none">
+        ${DIMENSIONS.map(d => {
+          const items = ranked.map(h => {
+            const s = scores[h.id][d.id];
+            return `<span class="dv" style="color:${s>=7?'var(--success)':s>=4?'var(--accent)':'var(--danger)'}">${h.name}: ${s}</span>`;
+          }).join('');
+          return `<div class="result-detail-item"><span class="dl">${d.name}</span>${items}</div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
+    <div class="weight-legend">
+      <h3>权重分布</h3>
+      <div class="weight-bars">
+        ${DIMENSIONS.map(d => `
+          <div class="weight-bar-item">
+            <span class="wb-label">${d.name}</span>
+            <div class="wb-track"><div class="wb-fill" style="width:${d.weight * 5}%"></div></div>
+            <span class="wb-val">${d.weight}%</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ====== 内容标签页切换 ======
+let currentContentTab = 'form';
+function switchContentTab(tab) {
+  currentContentTab = tab;
+  document.querySelectorAll('.content-tab').forEach((el, i) => {
+    const tabs = ['form', 'rank', 'table', 'chart'];
+    el.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach(el => {
+    el.classList.toggle('active', el.id === 'panel-' + tab);
+  });
+  // 切换时刷新对应面板
+  if (tab === 'rank') renderResults();
+  if (tab === 'table') renderTable();
+  if (tab === 'chart') renderChart();
+}
+
+// ====== 信息汇总表格 ======
+function renderTable() {
+  const el = document.getElementById('tableContent');
+  if (!houses.length) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">📊</div><p>添加房源后，这里将显示信息汇总表格</p></div>`;
+    return;
+  }
+
+  // 构建表格：行=维度+字段，列=房源
+  let html = '<div class="summary-table-wrap"><table class="summary-table"><thead><tr><th>项目</th>';
+  houses.forEach(h => { html += `<th>${h.name}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  // 各维度
+  DIMENSIONS.forEach(d => {
+    html += `<tr class="dim-row"><td>${d.icon} ${d.name}</td>`;
+    houses.forEach(h => {
+      const s = scores[h.id][d.id];
+      const color = s >= 7 ? 'var(--success)' : s >= 4 ? 'var(--accent)' : 'var(--danger)';
+      html += `<td style="color:${color};font-weight:600">${s}</td>`;
+    });
+    html += '</tr>';
+
+    // 每个字段
+    d.fields.forEach(f => {
+      if (f.type === 'text') return; // 备注单独处理
+      html += `<tr><td style="padding-left:24px;color:var(--fg-muted)">${f.label}</td>`;
+      houses.forEach(h => {
+        const val = fieldValues[h.id][d.id][f.key];
+        let display = val;
+        if (f.type === 'check') display = val ? '✓' : '✗';
+        if (f.type === 'number' && val) display = val + (f.unit || '');
+        if (!val && val !== 0 && val !== false) display = '-';
+        html += `<td>${display}</td>`;
+      });
+      html += '</tr>';
+    });
+
+    // 备注行
+    const hasNotes = houses.some(h => fieldValues[h.id][d.id].note);
+    if (hasNotes) {
+      html += `<tr class="note-row"><td style="padding-left:24px">备注</td>`;
+      houses.forEach(h => {
+        html += `<td title="${fieldValues[h.id][d.id].note || ''}">${fieldValues[h.id][d.id].note || '-'}</td>`;
+      });
+      html += '</tr>';
+    }
+  });
+
+  // 整体备注
+  const hasOverallNotes = houses.some(h => overallNotes[h.id]);
+  if (hasOverallNotes) {
+    html += `<tr class="note-row"><td style="color:var(--accent)">整体备注</td>`;
+    houses.forEach(h => {
+      html += `<td title="${overallNotes[h.id] || ''}">${overallNotes[h.id] || '-'}</td>`;
+    });
+    html += '</tr>';
+  }
+
+  // 总分行
+  html += `<tr class="total-row"><td>综合得分</td>`;
+  houses.forEach(h => {
+    let total = 0;
+    DIMENSIONS.forEach(d => { total += (scores[h.id][d.id] / 10) * d.weight; });
+    html += `<td>${total.toFixed(1)}</td>`;
+  });
+  html += '</tr>';
+
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+// ====== 图表对比 ======
+const CHART_COLORS = ['#e8a838', '#38c878', '#5b8def', '#e85858', '#a855f7', '#06b6d4', '#f97316', '#ec4899'];
+
+function renderChart() {
+  const el = document.getElementById('chartContent');
+  if (!houses.length) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">📈</div><p>添加房源后，这里将显示图表对比</p></div>`;
+    return;
+  }
+
+  // 计算各房源总分
+  const houseScores = houses.map(h => {
+    let total = 0;
+    DIMENSIONS.forEach(d => { total += (scores[h.id][d.id] / 10) * d.weight; });
+    return { ...h, total };
+  }).sort((a, b) => b.total - a.total);
+
+  // 1. 综合得分柱状图
+  let html = '<div class="chart-section"><h3>综合得分对比</h3><div class="bar-chart">';
+  houseScores.forEach((h, i) => {
+    const pct = h.total.toFixed(1);
+    const color = CHART_COLORS[i % CHART_COLORS.length];
+    html += `
+      <div class="bar-chart-item">
+        <span class="bar-chart-label">${h.name}</span>
+        <div class="bar-chart-track">
+          <div class="bar-chart-fill" style="width:${pct}%;background:${color};color:#0f1117">${pct}</div>
+        </div>
+      </div>`;
+  });
+  html += '</div></div>';
+
+  // 2. 各维度雷达图 (SVG)
+  html += '<div class="chart-section"><h3>各维度得分雷达图</h3><div class="radar-chart">';
+  html += renderRadarSVG(houseScores);
+  html += '</div>';
+
+  // 图例
+  html += '<div class="chart-legend">';
+  houseScores.forEach((h, i) => {
+    html += `<div class="chart-legend-item"><div class="chart-legend-dot" style="background:${CHART_COLORS[i % CHART_COLORS.length]}"></div>${h.name}</div>`;
+  });
+  html += '</div></div>';
+
+  // 3. 各维度柱状图
+  html += '<div class="chart-section"><h3>各维度得分对比</h3>';
+  DIMENSIONS.forEach(d => {
+    html += `<div style="margin-bottom:12px"><div style="font-size:0.82rem;color:var(--fg-muted);margin-bottom:6px">${d.icon} ${d.name}</div><div class="bar-chart">`;
+    houseScores.forEach((h, i) => {
+      const s = scores[h.id][d.id];
+      const pct = (s / 10 * 100).toFixed(0);
+      const color = CHART_COLORS[i % CHART_COLORS.length];
+      html += `
+        <div class="bar-chart-item">
+          <span class="bar-chart-label">${h.name}</span>
+          <div class="bar-chart-track">
+            <div class="bar-chart-fill" style="width:${pct}%;background:${color};color:#0f1117">${s}</div>
+          </div>
+        </div>`;
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+
+function renderRadarSVG(houseScores) {
+  const n = DIMENSIONS.length;
+  const cx = 200, cy = 200, r = 160;
+  const angleStep = (2 * Math.PI) / n;
+
+  // 背景网格
+  let svg = `<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">`;
+  // 画5层同心多边形
+  for (let level = 1; level <= 5; level++) {
+    const lr = r * level / 5;
+    let points = '';
+    for (let i = 0; i < n; i++) {
+      const angle = -Math.PI / 2 + i * angleStep;
+      points += `${cx + lr * Math.cos(angle)},${cy + lr * Math.sin(angle)} `;
+    }
+    svg += `<polygon points="${points.trim()}" fill="none" stroke="#2a2d38" stroke-width="1"/>`;
+  }
+  // 轴线
+  for (let i = 0; i < n; i++) {
+    const angle = -Math.PI / 2 + i * angleStep;
+    svg += `<line x1="${cx}" y1="${cy}" x2="${cx + r * Math.cos(angle)}" y2="${cy + r * Math.sin(angle)}" stroke="#2a2d38" stroke-width="1"/>`;
+  }
+  // 标签
+  for (let i = 0; i < n; i++) {
+    const angle = -Math.PI / 2 + i * angleStep;
+    const lx = cx + (r + 24) * Math.cos(angle);
+    const ly = cy + (r + 24) * Math.sin(angle);
+    svg += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" fill="#8a8d97" font-size="10" font-family="Noto Sans SC, sans-serif">${DIMENSIONS[i].name}</text>`;
+  }
+
+  // 每个房源的多边形
+  houseScores.forEach((h, hi) => {
+    let points = '';
+    for (let i = 0; i < n; i++) {
+      const s = scores[h.id][DIMENSIONS[i].id];
+      const lr = r * s / 10;
+      const angle = -Math.PI / 2 + i * angleStep;
+      points += `${cx + lr * Math.cos(angle)},${cy + lr * Math.sin(angle)} `;
+    }
+    const color = CHART_COLORS[hi % CHART_COLORS.length];
+    svg += `<polygon points="${points.trim()}" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="2"/>`;
+  });
+
+  svg += '</svg>';
+  return svg;
+}
+
+// ====== 权重编辑 ======
+function renderWeightEdit() {
+  const sidebar = document.querySelector('.sidebar');
+  let section = document.getElementById('weightEditSection');
+  if (!section) {
+    section = document.createElement('div');
+    section.id = 'weightEditSection';
+    section.className = 'weight-edit-section';
+    sidebar.insertBefore(section, sidebar.querySelector('.sidebar-actions'));
+  }
+  const total = DIMENSIONS.reduce((s, d) => s + d.weight, 0);
+  const isError = total !== 100;
+  section.innerHTML = `
+    <div class="weight-edit-title">权重设置</div>
+    ${DIMENSIONS.map(d => `
+      <div class="weight-edit-item">
+        <span class="we-icon">${d.icon}</span>
+        <span class="we-name">${d.name}</span>
+        <input type="number" value="${d.weight}" min="0" max="50"
+          onchange="updateWeight('${d.id}', this.value)">
+        <span class="we-unit">%</span>
+      </div>
+    `).join('')}
+    <div class="weight-total ${isError ? 'error' : ''}">
+      <span>合计</span>
+      <span>${total}% ${isError ? '(需等于100)' : ''}</span>
+    </div>
+  `;
+}
+
+function updateWeight(dimId, val) {
+  const dim = DIMENSIONS.find(d => d.id === dimId);
+  if (dim) {
+    dim.weight = Math.max(0, Math.min(50, parseInt(val) || 0));
+    saveData();
+    render();
+  }
+}
+loadData();
+render();
+
+// 注册 Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

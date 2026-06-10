@@ -1,0 +1,17 @@
+{
+  "appId": "com.mochen.rentscore",
+  "appName": "租房评分",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "allowsLinkPreview": false,
+    "contentInset": "automatic"
+  },
+  "plugins": {
+    "FileSystem": {
+      "readExternalStorage": false
+    }
+  }
+}
