@@ -1,9 +1,10 @@
-const CACHE_NAME = 'rent-score-v1';
+const CACHE_NAME = 'rent-score-v2';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/icon-192.svg',
-  '/icon-512.svg'
+  './',
+  './index.html',
+  './icon-192.svg',
+  './icon-512.svg',
+  './manifest.json'
 ];
 
 // 安装：缓存核心资源
@@ -29,7 +30,6 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request).then(cached => {
       return cached || fetch(event.request).then(response => {
-        // 缓存新请求
         if (response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
@@ -37,9 +37,8 @@ self.addEventListener('fetch', event => {
         return response;
       });
     }).catch(() => {
-      // 离线时返回缓存的主页
       if (event.request.mode === 'navigate') {
-        return caches.match('/index.html');
+        return caches.match('./index.html');
       }
     })
   );
