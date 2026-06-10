@@ -23,12 +23,23 @@ jobs:
       - name: Sync Capacitor
         run: node node_modules/@capacitor/cli/bin/capacitor sync ios
 
+      - name: Create missing config.xml
+        run: |
+          if [ ! -f ios/App/App/config.xml ]; then
+            cat > ios/App/App/config.xml << 'XMLEOF'
+          <?xml version='1.0' encoding='utf-8'?>
+          <widget version="1.0.0" xmlns="http://www.w3.org/ns/widgets">
+            <name>租房评分</name>
+          </widget>
+          XMLEOF
+          fi
+
       - name: Install CocoaPods
         run: |
           cd ios/App
           pod install
 
-      - name: Build iOS App
+      - name: Build iOS App (unsigned)
         run: |
           cd ios/App
           xcodebuild -workspace App.xcworkspace \
@@ -40,12 +51,18 @@ jobs:
             archive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            CODE_SIGN_STYLE=Manual \
+            ENABLE_BITCODE=NO \
+            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            2>&1 | tee xcodebuild.log
 
       - name: Export IPA
         run: |
           mkdir -p build/ipa
-          cp -r ios/App/build/App.xcarchive/Products/Applications/*.app build/ipa/
+          cp -r ios/App/build/App.xcarchive/Products/Applications/*.app build/ipa/ 2>/dev/null || \
+          cp -r ios/App/build/App.xcarchive/Products/Applications/App.app build/ipa/
           cd build/ipa
           mkdir Payload
           mv *.app Payload/
@@ -57,3 +74,10 @@ jobs:
         with:
           name: RentScore-iOS
           path: build/RentScore.ipa
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ios/App/xcodebuild.log
