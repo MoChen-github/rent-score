@@ -326,14 +326,15 @@
   .dim-fields {
     padding-left: 48px; margin-bottom: 14px;
     display: grid; grid-template-columns: 1fr 1fr;
-    gap: 10px 20px;
+    gap: 10px 20px; overflow: hidden;
   }
   .field-item {
     display: flex; align-items: center; gap: 8px;
     font-size: 0.84rem; color: var(--fg-muted);
+    min-width: 0; overflow: hidden;
   }
   .field-label {
-    min-width: 80px; flex-shrink: 0;
+    min-width: 0; flex-shrink: 0; max-width: 80px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .field-item input[type="number"],
@@ -347,11 +348,12 @@
   .field-item input:focus { border-color: var(--accent); }
   .field-item input::placeholder { color: rgba(138,141,151,0.5); font-size: 0.78rem; }
   .field-item select {
-    flex: 1; min-width: 0;
+    flex: 1; min-width: 0; max-width: 100%;
     background: rgba(255,255,255,0.04); border: 1px solid var(--border);
     border-radius: 6px; padding: 5px 8px;
     color: var(--fg); font-size: 0.84rem; font-family: inherit;
     outline: none; cursor: pointer; transition: border-color 0.3s;
+    overflow: hidden; text-overflow: ellipsis;
   }
   .field-item select:focus { border-color: var(--accent); }
   .field-item select option { background: var(--bg-card); color: var(--fg); }
@@ -381,7 +383,7 @@
     grid-column: 1 / -1;
   }
   .field-item-full input[type="text"] {
-    flex: 1; min-width: 0;
+    flex: 1; min-width: 0; width: 0;
     background: rgba(255,255,255,0.04); border: 1px solid var(--border);
     border-radius: 6px; padding: 5px 10px;
     color: var(--fg); font-size: 0.84rem; font-family: inherit;
