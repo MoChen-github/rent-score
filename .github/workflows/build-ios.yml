@@ -67,66 +67,42 @@ jobs:
           fi
           echo "Found: $APP_PATH"
 
-          # Use ditto (Apple's tool) to copy app bundle - preserves structure, resource forks, HFS metadata
+          # Create correct IPA structure: Payload/App.app/
           mkdir -p Payload
           ditto "$APP_PATH" Payload/App.app
 
-          # Verify the copy
-          echo "=== Payload/App.app contents ==="
-          ls -la Payload/App.app/
-          echo "=== Frameworks ==="
-          ls -la Payload/App.app/Frameworks/ 2>/dev/null || echo "No Frameworks"
-          echo "=== Check for broken symlinks ==="
-          find Payload/App.app -type l ! -exec test -e {} \; -print 2>/dev/null || echo "No broken symlinks"
+          # Verify structure
+          echo "=== Verifying IPA structure ==="
+          ls -la Payload/
+          ls -la Payload/App.app/ | head -15
+          echo "=== Checking executable ==="
+          file Payload/App.app/App
+          echo "=== Checking Info.plist ==="
+          plutil -p Payload/App.app/Info.plist | grep -E "CFBundleIdentifier|CFBundleVersion|CFBundleShortVersionString|CFBundleExecutable"
 
-          # Ad-hoc sign frameworks first, then the app
-          echo "=== Ad-hoc signing ==="
-          for fw in Payload/App.app/Frameworks/*.framework; do
-            if [ -d "$fw" ]; then
-              echo "Signing framework: $fw"
-              codesign --force --sign - "$fw" 2>&1
-            fi
-          done
-          echo "Signing app"
-          codesign --force --sign - Payload/App.app 2>&1
-          echo "=== Verify signature ==="
-          codesign -dv Payload/App.app 2>&1 | head -10
+          # Do NOT ad-hoc sign - let Sideloadly handle signing with user's Apple ID
+          # Ad-hoc signing can conflict with Sideloadly's re-signing process
 
-          # Create IPA using ditto (creates clean zip without __MACOSX)
-          echo "=== Creating IPA ==="
-          ditto -c -k --sequesterRsrc --keepParent Payload RentScore.ipa
+          # Create IPA from project root (so paths are Payload/App.app/...)
+          # NOT from inside Payload directory
+          zip -r RentScore.ipa Payload/
           echo "=== IPA size ==="
           ls -lh RentScore.ipa
 
-          # Also create with standard zip for comparison
-          cd Payload
-          zip -r ../RentScore-standard.ipa .
-          cd ..
-          echo "=== Standard IPA size ==="
-          ls -lh RentScore-standard.ipa
+          # CRITICAL: Verify IPA has correct structure
+          echo "=== Verifying IPA internal paths ==="
+          unzip -l RentScore.ipa | head -10
+          echo "..."
+          echo "=== Checking for Payload/ prefix ==="
+          unzip -l RentScore.ipa | grep "^.*Payload/App.app/$" && echo "OK: Payload/App.app/ found" || echo "ERROR: Missing Payload/ prefix!"
+          echo "=== Checking executable path ==="
+          unzip -l RentScore.ipa | grep "Payload/App.app/App$" && echo "OK: Executable found at correct path" || echo "ERROR: Executable not at Payload/App.app/App"
 
-          # Verify both
-          echo "=== ditto IPA contents ==="
-          unzip -l RentScore.ipa | head -30
-          echo "=== standard IPA contents ==="
-          unzip -l RentScore-standard.ipa | head -30
-
-          # Compute checksums
-          echo "=== SHA256 ==="
-          shasum -a 256 RentScore.ipa
-          shasum -a 256 RentScore-standard.ipa
-
-      - name: Upload IPA (ditto)
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: RentScore-iOS-ditto
+          name: RentScore-iOS
           path: RentScore.ipa
-
-      - name: Upload IPA (standard)
-        uses: actions/upload-artifact@v4
-        with:
-          name: RentScore-iOS-standard
-          path: RentScore-standard.ipa
 
       - name: Upload build log on failure
         if: failure()
