@@ -49,8 +49,7 @@
 	<string>需要访问文档目录以导出租房评分数据</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
-	<LSSupportsOpeningDocumentsInPlace>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
-	</LSSupportsOpeningDocumentsInPlace>
 </dict>
 </plist>
