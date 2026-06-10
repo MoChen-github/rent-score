@@ -39,7 +39,7 @@ jobs:
           cd ios/App
           pod install
 
-      - name: Build iOS App
+      - name: Build and Archive
         run: |
           set -o pipefail
           cd ios/App
@@ -48,55 +48,95 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
+            -archivePath build/App.xcarchive \
+            archive \
             CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
             DEVELOPMENT_TEAM="" \
-            CODE_SIGN_STYLE=Manual \
             ENABLE_BITCODE=NO \
-            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             ONLY_ACTIVE_ARCH=NO \
             2>&1 | tee xcodebuild.log
 
-      - name: Create IPA
+      - name: Create ExportOptions.plist
         run: |
-          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "App.app" -path "*/Release-iphoneos/*" -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "ERROR: Could not find App.app"
-            exit 1
+          cat > ios/App/ExportOptions.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>debug</string>
+              <key>signingStyle</key>
+              <string>automatic</string>
+              <key>stripSwiftSymbols</key>
+              <true/>
+              <key>teamID</key>
+              <string></string>
+              <key>uploadSymbols</key>
+              <false/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Export IPA from Archive
+        run: |
+          cd ios/App
+          # First try: exportArchive (standard Apple method)
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportPath build/ipa-output \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates \
+            2>&1 | tee export.log || true
+
+          # Check if exportArchive produced an IPA
+          if find build/ipa-output -name "*.ipa" -type f 2>/dev/null | head -1 | grep -q .; then
+            IPA=$(find build/ipa-output -name "*.ipa" -type f | head -1)
+            echo "exportArchive produced: $IPA"
+            cp "$IPA" ../../RentScore.ipa
+          else
+            echo "exportArchive failed, using manual IPA creation..."
+            # Manual method: find .app in archive, create IPA
+            APP_PATH=$(find build/App.xcarchive -name "App.app" -type d | head -1)
+            if [ -z "$APP_PATH" ]; then
+              echo "ERROR: No App.app found in archive"
+              find build/App.xcarchive -maxdepth 5 -type d 2>/dev/null
+              exit 1
+            fi
+            echo "Found: $APP_PATH"
+
+            # Create Payload structure
+            rm -rf /tmp/Payload
+            mkdir -p /tmp/Payload
+            ditto "$APP_PATH" /tmp/Payload/App.app
+
+            # Ad-hoc sign frameworks then app (required for Sideloadly)
+            echo "=== Signing frameworks ==="
+            for fw in /tmp/Payload/App.app/Frameworks/*.framework; do
+              if [ -d "$fw" ]; then
+                echo "Signing: $(basename $fw)"
+                codesign --force --sign - --timestamp=none "$fw" 2>&1
+              fi
+            done
+            echo "=== Signing app ==="
+            codesign --force --sign - --timestamp=none /tmp/Payload/App.app 2>&1
+
+            # Verify
+            echo "=== Verify signature ==="
+            codesign -dv /tmp/Payload/App.app 2>&1 | head -5
+
+            # Package IPA
+            cd /tmp
+            zip -r ~/work/rent-score/rent-score/RentScore.ipa Payload/
+            cd ~/work/rent-score/rent-score
           fi
-          echo "Found: $APP_PATH"
 
-          # Create correct IPA structure: Payload/App.app/
-          mkdir -p Payload
-          ditto "$APP_PATH" Payload/App.app
-
-          # Verify structure
-          echo "=== Verifying IPA structure ==="
-          ls -la Payload/
-          ls -la Payload/App.app/ | head -15
-          echo "=== Checking executable ==="
-          file Payload/App.app/App
-          echo "=== Checking Info.plist ==="
-          plutil -p Payload/App.app/Info.plist | grep -E "CFBundleIdentifier|CFBundleVersion|CFBundleShortVersionString|CFBundleExecutable"
-
-          # Do NOT ad-hoc sign - let Sideloadly handle signing with user's Apple ID
-          # Ad-hoc signing can conflict with Sideloadly's re-signing process
-
-          # Create IPA from project root (so paths are Payload/App.app/...)
-          # NOT from inside Payload directory
-          zip -r RentScore.ipa Payload/
-          echo "=== IPA size ==="
+          echo "=== Final IPA ==="
           ls -lh RentScore.ipa
-
-          # CRITICAL: Verify IPA has correct structure
-          echo "=== Verifying IPA internal paths ==="
-          unzip -l RentScore.ipa | head -10
+          unzip -l RentScore.ipa | head -15
           echo "..."
-          echo "=== Checking for Payload/ prefix ==="
-          unzip -l RentScore.ipa | grep "^.*Payload/App.app/$" && echo "OK: Payload/App.app/ found" || echo "ERROR: Missing Payload/ prefix!"
-          echo "=== Checking executable path ==="
-          unzip -l RentScore.ipa | grep "Payload/App.app/App$" && echo "OK: Executable found at correct path" || echo "ERROR: Executable not at Payload/App.app/App"
+          unzip -l RentScore.ipa | grep "Payload/App.app/App$" && echo "OK: Executable at correct path" || echo "ERROR: No executable"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
@@ -109,4 +149,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: ios/App/xcodebuild.log
+          path: |
+            ios/App/xcodebuild.log
+            ios/App/export.log
