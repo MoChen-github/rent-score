@@ -39,7 +39,7 @@ jobs:
           cd ios/App
           pod install
 
-      - name: Build and Archive
+      - name: Build iOS App
         run: |
           set -o pipefail
           cd ios/App
@@ -48,8 +48,6 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            -archivePath build/App.xcarchive \
-            archive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -58,85 +56,103 @@ jobs:
             ONLY_ACTIVE_ARCH=NO \
             2>&1 | tee xcodebuild.log
 
-      - name: Create ExportOptions.plist
+      - name: Create clean IPA
         run: |
-          cat > ios/App/ExportOptions.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>debug</string>
-              <key>signingStyle</key>
-              <string>automatic</string>
-              <key>stripSwiftSymbols</key>
-              <true/>
-              <key>teamID</key>
-              <string></string>
-              <key>uploadSymbols</key>
-              <false/>
-          </dict>
-          </plist>
-          EOF
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "App.app" -path "*/Release-iphoneos/*" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: Could not find App.app"
+            exit 1
+          fi
+          echo "Found: $APP_PATH"
 
-      - name: Export IPA from Archive
-        run: |
-          cd ios/App
-          # First try: exportArchive (standard Apple method)
-          xcodebuild -exportArchive \
-            -archivePath build/App.xcarchive \
-            -exportPath build/ipa-output \
-            -exportOptionsPlist ExportOptions.plist \
-            -allowProvisioningUpdates \
-            2>&1 | tee export.log || true
+          # Step 1: Copy app bundle, resolving ALL symlinks to real files
+          echo "=== Step 1: Copy with symlink resolution ==="
+          rm -rf /tmp/ipa-build
+          mkdir -p /tmp/ipa-build/Payload
+          cp -RL "$APP_PATH" /tmp/ipa-build/Payload/App.app
 
-          # Check if exportArchive produced an IPA
-          if find build/ipa-output -name "*.ipa" -type f 2>/dev/null | head -1 | grep -q .; then
-            IPA=$(find build/ipa-output -name "*.ipa" -type f | head -1)
-            echo "exportArchive produced: $IPA"
-            cp "$IPA" ../../RentScore.ipa
+          # Step 2: Verify no symlinks remain
+          echo "=== Step 2: Check for remaining symlinks ==="
+          SYMLINKS=$(find /tmp/ipa-build/Payload -type l 2>/dev/null)
+          if [ -n "$SYMLINKS" ]; then
+            echo "WARNING: Found symlinks, replacing with targets..."
+            echo "$SYMLINKS"
+            # Replace each symlink with its target
+            find /tmp/ipa-build/Payload -type l -exec sh -c '
+              for link; do
+                target="$(readlink -f "$link")"
+                if [ -e "$target" ]; then
+                  rm "$link"
+                  cp -RL "$target" "$link"
+                else
+                  echo "BROKEN: $link -> $target"
+                  rm "$link"
+                fi
+              done
+            ' sh {} +
           else
-            echo "exportArchive failed, using manual IPA creation..."
-            # Manual method: find .app in archive, create IPA
-            APP_PATH=$(find build/App.xcarchive -name "App.app" -type d | head -1)
-            if [ -z "$APP_PATH" ]; then
-              echo "ERROR: No App.app found in archive"
-              find build/App.xcarchive -maxdepth 5 -type d 2>/dev/null
-              exit 1
-            fi
-            echo "Found: $APP_PATH"
-
-            # Create Payload structure
-            rm -rf /tmp/Payload
-            mkdir -p /tmp/Payload
-            ditto "$APP_PATH" /tmp/Payload/App.app
-
-            # Ad-hoc sign frameworks then app (required for Sideloadly)
-            echo "=== Signing frameworks ==="
-            for fw in /tmp/Payload/App.app/Frameworks/*.framework; do
-              if [ -d "$fw" ]; then
-                echo "Signing: $(basename $fw)"
-                codesign --force --sign - --timestamp=none "$fw" 2>&1
-              fi
-            done
-            echo "=== Signing app ==="
-            codesign --force --sign - --timestamp=none /tmp/Payload/App.app 2>&1
-
-            # Verify
-            echo "=== Verify signature ==="
-            codesign -dv /tmp/Payload/App.app 2>&1 | head -5
-
-            # Package IPA
-            cd /tmp
-            zip -r ~/work/rent-score/rent-score/RentScore.ipa Payload/
-            cd ~/work/rent-score/rent-score
+            echo "No symlinks found - OK"
           fi
 
-          echo "=== Final IPA ==="
+          # Double check
+          REMAINING=$(find /tmp/ipa-build/Payload -type l 2>/dev/null | wc -l)
+          echo "Remaining symlinks: $REMAINING"
+
+          # Step 3: Verify framework structure
+          echo "=== Step 3: Framework structure ==="
+          for fw in /tmp/ipa-build/Payload/App.app/Frameworks/*.framework; do
+            if [ -d "$fw" ]; then
+              echo "--- $(basename $fw) ---"
+              ls -la "$fw/"
+              # Check the framework binary exists and is a real file
+              FW_NAME=$(basename "$fw" .framework)
+              if [ -f "$fw/$FW_NAME" ]; then
+                echo "Binary OK: $fw/$FW_NAME ($(stat -f%z "$fw/$FW_NAME") bytes)"
+              else
+                echo "ERROR: Missing binary $fw/$FW_NAME"
+              fi
+            fi
+          done
+
+          # Step 4: Ad-hoc sign (frameworks first, then app)
+          echo "=== Step 4: Ad-hoc signing ==="
+          for fw in /tmp/ipa-build/Payload/App.app/Frameworks/*.framework; do
+            if [ -d "$fw" ]; then
+              FW_NAME=$(basename "$fw" .framework)
+              # Sign the framework binary first
+              if [ -f "$fw/$FW_NAME" ]; then
+                echo "Signing binary: $fw/$FW_NAME"
+                codesign --force --sign - --timestamp=none "$fw/$FW_NAME" 2>&1 || true
+              fi
+              # Then sign the framework bundle
+              echo "Signing framework: $(basename $fw)"
+              codesign --force --sign - --timestamp=none "$fw" 2>&1 || true
+            fi
+          done
+          echo "Signing app bundle"
+          codesign --force --sign - --timestamp=none /tmp/ipa-build/Payload/App.app 2>&1 || true
+
+          # Step 5: Verify signature
+          echo "=== Step 5: Verify signature ==="
+          codesign -dv /tmp/ipa-build/Payload/App.app 2>&1 | head -8
+
+          # Step 6: Create IPA
+          echo "=== Step 6: Create IPA ==="
+          cd /tmp/ipa-build
+          zip -r ~/work/rent-score/rent-score/RentScore.ipa Payload/
+          cd ~/work/rent-score/rent-score
+
+          # Step 7: Final verification
+          echo "=== Step 7: Final verification ==="
           ls -lh RentScore.ipa
-          unzip -l RentScore.ipa | head -15
-          echo "..."
-          unzip -l RentScore.ipa | grep "Payload/App.app/App$" && echo "OK: Executable at correct path" || echo "ERROR: No executable"
+          echo "=== Top-level IPA structure ==="
+          unzip -l RentScore.ipa | grep -E "^.*Payload/[^/]+/$" | head -5
+          echo "=== Framework binaries in IPA ==="
+          unzip -l RentScore.ipa | grep -E "Frameworks/[^/]+/[^/]+$" | grep -v "CodeResources\|Info.plist\|PrivacyInfo"
+          echo "=== Main executable ==="
+          unzip -l RentScore.ipa | grep "Payload/App.app/App$"
+          echo "=== Total file count ==="
+          unzip -l RentScore.ipa | tail -1
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
@@ -149,6 +165,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: |
-            ios/App/xcodebuild.log
-            ios/App/export.log
+          path: ios/App/xcodebuild.log
