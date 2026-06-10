@@ -60,20 +60,27 @@ jobs:
 
       - name: Export IPA
         run: |
-          mkdir -p build/ipa
-          cp -r ios/App/build/App.xcarchive/Products/Applications/*.app build/ipa/ 2>/dev/null || \
-          cp -r ios/App/build/App.xcarchive/Products/Applications/App.app build/ipa/
-          cd build/ipa
-          mkdir Payload
-          mv *.app Payload/
-          zip -r ../RentScore.ipa Payload
-          cd ../..
+          echo "=== Archive contents ==="
+          find ios/App/build/App.xcarchive -name "*.app" 2>/dev/null || echo "No .app found in archive"
+          echo "=== Full archive structure ==="
+          find ios/App/build/App.xcarchive -maxdepth 4 -type d 2>/dev/null || echo "Archive directory not found"
+
+          APP_PATH=$(find ios/App/build/App.xcarchive -name "*.app" -maxdepth 5 | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: Could not find .app in archive"
+            exit 1
+          fi
+          echo "Found app at: $APP_PATH"
+
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r RentScore.ipa Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: RentScore-iOS
-          path: build/RentScore.ipa
+          path: RentScore.ipa
 
       - name: Upload build log on failure
         if: failure()
